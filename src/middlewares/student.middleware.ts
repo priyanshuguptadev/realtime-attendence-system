@@ -36,7 +36,6 @@ export const isStudent = async (
       error: "Forbidden, student access required",
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",

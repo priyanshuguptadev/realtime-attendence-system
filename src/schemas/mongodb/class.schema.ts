@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { User } from "../../models/user.model.js";
 
 export const classSchema = new mongoose.Schema({
-  classname: {
+  className: {
     type: String,
     required: true,
   },

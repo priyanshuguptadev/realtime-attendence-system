@@ -19,9 +19,9 @@ connectToDB();
 app.use("/auth", authRouter);
 app.use("/class", classRouter);
 app.use("/students", studentRouter);
-app.use("/attendence", attendenceRouter);
+app.use("/attendance", attendenceRouter);
 
-app.get("/health", (req, res) =>
+app.get("/", (req, res) =>
   res.status(200).json({
     success: true,
     data: {
@@ -30,17 +30,32 @@ app.get("/health", (req, res) =>
   })
 );
 
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: "Route not found",
+  });
+});
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    error: "Internal server error",
+  });
+});
 const server = app.listen(3000, () => console.log("Listening at port 3000!"));
 
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", async (ws: NewWebSocket, req) => {
   try {
-    ws.send("Websocket server is listening!");
     const token = wsHandlers.getWsToken(ws, req);
+    ws.user = wsHandlers.decodeToken(ws, token!)!;
     ws.on("message", async (msg) => {
-      ws.user = wsHandlers.decodeToken(ws, token!)!;
-      const jsonPayload = JSON.parse(msg.toString());
+      if (!ws.user) return ws.close();
+      const jsonPayload = wsHandlers.parseJson(ws, msg);
+      if (!jsonPayload) return ws.close();
       switch (ws.user.role) {
         case "teacher":
           switch (jsonPayload.event) {
@@ -53,17 +68,29 @@ wss.on("connection", async (ws: NewWebSocket, req) => {
             case "DONE":
               wsHandlers.handleAttendenceComplete(ws, wss);
               break;
+            case "MY_ATTENDANCE":
+              ws.send(
+                JSON.stringify({
+                  event: "ERROR",
+                  data: {
+                    message: "Forbidden, student event only",
+                  },
+                })
+              );
+              break;
             default:
               ws.send(
                 JSON.stringify({
                   event: "ERROR",
                   data: {
-                    message: "Your role is teacher.",
+                    message: "Unknown event",
                   },
                 })
               );
               break;
           }
+
+          break;
         case "student":
           switch (jsonPayload.event) {
             case "MY_ATTENDANCE":
@@ -74,12 +101,14 @@ wss.on("connection", async (ws: NewWebSocket, req) => {
                 JSON.stringify({
                   event: "ERROR",
                   data: {
-                    message: "Your role is student.",
+                    message: "Forbidden, teacher event only",
                   },
                 })
               );
               break;
           }
+
+          break;
         default:
           ws.send(
             JSON.stringify({

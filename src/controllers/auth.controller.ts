@@ -6,39 +6,32 @@ import bcrypt from "bcrypt";
 export const signup = async (req: Request, res: Response) => {
   try {
     const payload = req.body;
-    const { success, data, error } = signupSchema.safeParse(payload);
+    const { success, data } = signupSchema.safeParse(payload);
     if (!success) {
-      return res.json({
+      return res.status(400).json({
         success: false,
-        error: error.message,
+        error: "Invalid request schema",
       });
     }
     const userExists = await User.findOne({ email: data.email });
     if (userExists) {
       return res.status(400).json({
         success: false,
-        error: "User already exits! Please Login.",
+        error: "Email already exists",
       });
     }
     const password = await bcrypt.hash(data.password, 10);
     const updatedData = { ...data, password };
     const newUser = new User(updatedData);
     const savedUser = await newUser.save();
-    const token = jwt.sign(
-      {
-        id: savedUser._id,
-        role: savedUser.role,
-      },
-      process.env.JWT_SECRET_KEY!
-    );
+    const { password: _, ...user } = savedUser.toJSON();
     res.status(201).json({
       success: true,
       data: {
-        token: token,
+        ...user,
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
@@ -48,18 +41,18 @@ export const signup = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const payload = req.body;
-    const { success, data, error } = loginSchema.safeParse(payload);
+    const { success, data } = loginSchema.safeParse(payload);
     if (!success) {
-      return res.json({
+      return res.status(400).json({
         success: false,
-        error: error.message,
+        error: "Invalid request schema",
       });
     }
     const userExists = await User.findOne({ email: data.email });
     if (!userExists) {
       return res.status(400).json({
         success: false,
-        error: "User does not exist! Please register.",
+        error: "Invalid email or password",
       });
     }
     const isPasswordCorrect = await bcrypt.compare(
@@ -69,7 +62,7 @@ export const login = async (req: Request, res: Response) => {
     if (!isPasswordCorrect) {
       return res.status(400).json({
         success: false,
-        error: "Password Incorrect!",
+        error: "Invalid email or password",
       });
     }
 
@@ -87,7 +80,6 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
@@ -107,7 +99,7 @@ export const checkMe = async (req: Request, res: Response) => {
     if (!bearerToken) {
       return res.status(401).json({
         success: false,
-        error: "Please send token in this format.`Bearer {token}`",
+        error: "Unauthorized, token missing or invalid",
       });
     }
 
@@ -115,17 +107,27 @@ export const checkMe = async (req: Request, res: Response) => {
       bearerToken,
       process.env.JWT_SECRET_KEY!
     );
+    if (!jwtPayload) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized, token missing or invalid",
+      });
+    }
     const user = await User.findById(jwtPayload.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found.",
+      });
+    }
+    const { password: _, ...pubUser } = user.toJSON();
     res.status(200).json({
       success: true,
       data: {
-        name: user?.name,
-        email: user?.email,
-        role: user?.role,
+        ...pubUser,
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",

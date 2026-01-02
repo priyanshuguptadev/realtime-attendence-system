@@ -2,19 +2,21 @@ import type { Response } from "express";
 import type { NewRequest } from "../utils/types.js";
 import { addstudentSchema, createClassSchema } from "../schemas/zod/index.js";
 import { Class } from "../models/class.model.js";
+import { Types } from "mongoose";
+import { User } from "../models/user.model.js";
 
 export const createClass = async (req: NewRequest, res: Response) => {
   try {
     const payload = req.body;
-    const { success, data, error } = createClassSchema.safeParse(payload);
+    const { success, data } = createClassSchema.safeParse(payload);
     if (!success) {
-      return res.json({
+      return res.status(400).json({
         success: false,
-        error: error.message,
+        error: "Invalid request schema",
       });
     }
     const newClass = new Class({
-      classname: data.classname,
+      className: data.className,
       teacherId: req.userId,
     });
     const savedClass = await newClass.save();
@@ -25,7 +27,6 @@ export const createClass = async (req: NewRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
@@ -37,16 +38,43 @@ export const addStudent = async (req: NewRequest, res: Response) => {
   try {
     const payload = req.body;
     const classId = req.params.id;
-    const { data, success, error } = addstudentSchema.safeParse(payload);
+    const { data, success } = addstudentSchema.safeParse(payload);
     if (!success) {
-      return res.json({
+      return res.status(400).json({
         success: false,
-        error: error.message,
+        error: "Invalid request schema",
       });
     }
-    const added = await Class.findByIdAndUpdate(classId, {
-      $push: { studentIds: data.studentId },
+    const dbClass = await Class.findById(classId);
+    if (!dbClass) {
+      return res.status(404).json({
+        success: false,
+        error: "Class not found",
+      });
+    }
+    const dbStudent = await User.findOne({
+      _id: data.studentId,
+      role: "student",
     });
+    if (!dbStudent) {
+      return res.status(404).json({
+        success: false,
+        error: "Student not found",
+      });
+    }
+    if (dbClass.teacherId.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden, not class teacher",
+      });
+    }
+    const added = await Class.findByIdAndUpdate(
+      classId,
+      {
+        $addToSet: { studentIds: data.studentId },
+      },
+      { new: true }
+    );
     if (!added) {
       return res.status(400).json({
         status: false,
@@ -54,14 +82,13 @@ export const addStudent = async (req: NewRequest, res: Response) => {
       });
     }
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       data: {
         ...added.toJSON(),
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
@@ -75,23 +102,45 @@ export const getClassDetails = async (req: NewRequest, res: Response) => {
 
     const classDetail = await Class.findById(classId).populate(
       "studentIds",
-      "name email"
+      "name email _id"
     );
+
     if (!classDetail) {
-      return res.status(400).json({
-        status: false,
-        error: "Something went wrong! Please try again.",
+      return res.status(404).json({
+        success: false,
+        error: "Class not found",
       });
     }
+    if (req.role === "student") {
+      const stds = classDetail.studentIds;
+      const stdIds = stds.map((s) => s._id.toString());
+      const found = stdIds.find((val) => val === req.userId);
+      if (!found) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden, non-enrolled student",
+        });
+      }
+    } else {
+      if (req.userId !== classDetail.teacherId.toString()) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden, not class teacher",
+        });
+      }
+    }
 
-    res.status(201).json({
+    const jsonClass = classDetail.toJSON();
+
+    res.status(200).json({
       success: true,
       data: {
-        ...classDetail.toJSON(),
+        _id: jsonClass._id,
+        className: jsonClass.className,
+        students: jsonClass.studentIds,
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",

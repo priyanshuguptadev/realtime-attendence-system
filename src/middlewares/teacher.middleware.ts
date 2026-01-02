@@ -19,7 +19,7 @@ export const isTeacher = async (
     if (!bearerToken) {
       return res.status(401).json({
         success: false,
-        error: "Please send token in this format.`Bearer {token}`",
+        error: "Unauthorized, token missing or invalid",
       });
     }
 
@@ -36,10 +36,45 @@ export const isTeacher = async (
       error: "Forbidden, teacher access required",
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
+    });
+  }
+};
+
+export const verifyToken = async (
+  req: NewRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authToken = req.headers.authorization;
+    if (!authToken) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized, token missing or invalid",
+      });
+    }
+    const bearerToken = authToken.split(" ")[1];
+    if (!bearerToken) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized, token missing or invalid",
+      });
+    }
+
+    const jwtPayload: any = jwt.verify(
+      bearerToken,
+      process.env.JWT_SECRET_KEY!
+    );
+    req.userId = jwtPayload.id;
+    req.role = jwtPayload.role;
+    next();
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      error: "Unauthorized, token missing or invalid",
     });
   }
 };

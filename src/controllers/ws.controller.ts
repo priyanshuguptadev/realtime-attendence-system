@@ -12,11 +12,12 @@ interface JwtPayload {
 
 interface Session {
   classId: string;
+  teacherId: string;
   startedAt: string;
   attendence: Record<string, "Present" | "Absent">;
 }
 
-export const activeSession: Partial<Session> = {};
+export let activeSession: Partial<Session> = {};
 
 export const getWsToken = (ws: WebSocket, req: any) => {
   const url = new URL(req.url, "ws://localhost");
@@ -26,7 +27,7 @@ export const getWsToken = (ws: WebSocket, req: any) => {
       JSON.stringify({
         event: "ERROR",
         data: {
-          message: "Token not found in the query param.",
+          message: "Unauthorized or invalid token",
         },
       })
     );
@@ -48,7 +49,7 @@ export const decodeToken = (ws: WebSocket, token: string) => {
       JSON.stringify({
         event: "ERROR",
         data: {
-          message: "Token is not correct!",
+          message: "Unauthorized or invalid token",
         },
       })
     );
@@ -58,22 +59,22 @@ export const decodeToken = (ws: WebSocket, token: string) => {
 
 export const handleAttendenceMarked = (
   wss: WebSocketServer,
-  ws: WebSocket,
+  ws: NewWebSocket,
   payload: any
 ) => {
-  if (Object.keys(activeSession).length === 0 || !activeSession.attendence) {
+  if (ws.user?.userId !== activeSession.teacherId) {
+    activeSession = {};
     return ws.send(
       JSON.stringify({
         event: "ERROR",
         data: {
-          message:
-            "No active session found! Please start the attendence first.",
+          message: "No active attendance session",
         },
       })
     );
   }
   const { studentId, status } = payload.data;
-  activeSession.attendence[studentId] = status;
+  activeSession.attendence![studentId] = status;
   wss.clients.forEach(
     (client) =>
       client.readyState === WebSocket.OPEN &&
@@ -82,42 +83,32 @@ export const handleAttendenceMarked = (
 };
 
 export const handleTodaySummary = async (
-  ws: WebSocket,
+  ws: NewWebSocket,
   wss: WebSocketServer
 ) => {
   try {
-    if (Object.keys(activeSession).length === 0 || !activeSession.attendence) {
+    if (ws.user?.userId !== activeSession.teacherId) {
+      activeSession = {};
       return ws.send(
         JSON.stringify({
           event: "ERROR",
           data: {
-            message:
-              "No active session found! Please start the attendence first.",
+            message: "No active attendance session",
           },
         })
       );
     }
-    const vals = Object.values(activeSession.attendence);
+    const vals = Object.values(activeSession.attendence || {});
+    const present = vals.filter((s) => s === "Present").length;
+    const absent = vals.filter((s) => s === "Absent").length;
+    const total = vals.length;
 
-    const dbClass = await Class.findById(activeSession.classId);
-    if (!dbClass) {
-      return ws.send(
-        JSON.stringify({
-          event: "ERROR",
-          data: {
-            message: "No class for active session found in database.",
-          },
-        })
-      );
-    }
-    const totalStuds = dbClass.studentIds.length;
-    const presentStuds = vals.map((val) => val === "Present").length;
     const delivery = {
       event: "TODAY_SUMMARY",
       data: {
-        present: presentStuds,
-        absent: totalStuds - presentStuds,
-        total: totalStuds,
+        present,
+        absent,
+        total,
       },
     };
     wss.clients.forEach((client) => client.send(JSON.stringify(delivery)));
@@ -134,14 +125,13 @@ export const handleTodaySummary = async (
   }
 };
 
-export const handleStudAttendence = (ws: NewWebSocket, payload: any) => {
+export const handleStudAttendence = async (ws: NewWebSocket, payload: any) => {
   if (Object.keys(activeSession).length === 0 || !activeSession.attendence) {
     return ws.send(
       JSON.stringify({
         event: "ERROR",
         data: {
-          message:
-            "No active session found! Let your teacher start attendence.",
+          message: "No active attendance session",
         },
       })
     );
@@ -152,6 +142,20 @@ export const handleStudAttendence = (ws: NewWebSocket, payload: any) => {
         event: "ERROR",
         data: {
           message: "Unauthenticated Request!",
+        },
+      })
+    );
+  }
+  const classDoc = await Class.findById(activeSession.classId);
+  if (
+    !classDoc ||
+    !classDoc.studentIds.some((val) => val.toString() === ws.user?.userId)
+  ) {
+    return ws.send(
+      JSON.stringify({
+        event: "ERROR",
+        data: {
+          message: "No active attendance session",
         },
       })
     );
@@ -178,77 +182,61 @@ export const handleStudAttendence = (ws: NewWebSocket, payload: any) => {
 };
 
 export const handleAttendenceComplete = async (
-  ws: WebSocket,
+  ws: NewWebSocket,
   wss: WebSocketServer
 ) => {
   try {
-    if (Object.keys(activeSession).length === 0 || !activeSession.attendence) {
+    if (ws.user?.userId !== activeSession.teacherId) {
+      activeSession = {};
       return ws.send(
         JSON.stringify({
           event: "ERROR",
           data: {
-            message:
-              "No active session found! Please start the attendence first.",
+            message: "No active attendance session",
           },
         })
       );
     }
+
     const dbClass = await Class.findById(activeSession.classId);
     if (!dbClass) {
       return ws.send(
         JSON.stringify({
           event: "ERROR",
           data: {
-            message: "No class for active session found in database.",
+            message: "Class not found",
           },
         })
       );
     }
-    const studIds = dbClass.studentIds;
-    if (studIds.length === 0) {
-      return ws.send(
-        JSON.stringify({
-          event: "ERROR",
-          data: {
-            message: "There are no students in this class.",
-          },
-        })
-      );
-    }
-    if (!activeSession.attendence) {
-      activeSession.attendence = {};
-    }
-
-    for (const sid of studIds) {
-      const key = sid.toString();
-      activeSession.attendence[key] ??= "Absent";
-    }
-
-    const keys = Object.keys(activeSession.attendence);
-    const classObjId = new Types.ObjectId(activeSession.classId);
-    for (const key of keys) {
-      const keyId = key.toString();
-      await Attendence.create({
-        classId: classObjId,
-        studentId: key,
-        status: activeSession.attendence[keyId]!,
-      });
-    }
-    const presentStuds = await Attendence.find({
-      classId: classObjId,
-      status: "Present",
+    dbClass.studentIds.forEach((student) => {
+      const studId = student.toString();
+      if (!activeSession.attendence![studId]) {
+        activeSession.attendence![studId] = "Absent";
+      }
     });
-    const absentStuds = await Attendence.find({
-      classId: classObjId,
-      status: "Absent",
-    });
+    const records = Object.entries(activeSession.attendence!).map(
+      ([studentId, status]) => ({
+        classId: new Types.ObjectId(activeSession.classId),
+        studentId,
+        status,
+      })
+    );
+    await Attendence.insertMany(records);
+    const vals = Object.values(activeSession.attendence!);
+    const present = vals.filter((s) => s === "Present").length;
+    const absent = vals.filter((s) => s === "Absent").length;
+    const total = vals.length;
+
+    activeSession = {};
+
     const delivery = {
       event: "DONE",
       data: {
         message: "Attendance persisted",
-        present: presentStuds.length,
-        absent: absentStuds.length,
-        total: presentStuds.length + absentStuds.length,
+        present,
+        absent,
+        total,
       },
     };
     wss.clients.forEach((client) => client.send(JSON.stringify(delivery)));
@@ -258,6 +246,22 @@ export const handleAttendenceComplete = async (
         event: "ERROR",
         data: {
           message: "Something went wrong! Please try again.",
+        },
+      })
+    );
+    ws.close();
+  }
+};
+export const parseJson = (ws: WebSocket, msg: any) => {
+  try {
+    const parsed = JSON.parse(msg.toString());
+    return parsed;
+  } catch (error) {
+    ws.send(
+      JSON.stringify({
+        event: "ERROR",
+        data: {
+          message: "Invalid message format",
         },
       })
     );

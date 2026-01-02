@@ -3,7 +3,7 @@ import z from "zod";
 export const signupSchema = z.object({
   name: z.string(),
   email: z.email(),
-  password: z.string(),
+  password: z.string().min(6, "Minimum six characters required."),
   role: z.enum(["teacher", "student"]),
 });
 
@@ -13,7 +13,7 @@ export const loginSchema = z.object({
 });
 
 export const createClassSchema = z.object({
-  classname: z.string().min(0, "classname is required!"),
+  className: z.string().min(0, "classname is required!"),
 });
 
 export const addstudentSchema = z.object({
@@ -22,4 +22,9 @@ export const addstudentSchema = z.object({
 
 export const startAttendenceSchema = z.object({
   classId: z.string().min(0, "class id is required!"),
+});
+
+export const WsMessageSchema = z.object({
+  event: z.string(),
+  data: z.object().optional(),
 });

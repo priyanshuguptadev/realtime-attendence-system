@@ -2,23 +2,23 @@ import type { Response, Request } from "express";
 import { User } from "../models/user.model.js";
 import type { NewRequest } from "../utils/types.js";
 import { Attendence } from "../models/attendence.model.js";
+import { Types } from "mongoose";
 
 export const getAllStudents = async (req: Request, res: Response) => {
   try {
     const students = await User.find({ role: "student" });
     if (!students) {
-      return res.status(400).json({
+      return res.status(404).json({
         status: false,
         error: "No students found!",
       });
     }
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       data: students.map((s) => ({ _id: s._id, name: s.name, email: s.email })),
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
@@ -28,8 +28,8 @@ export const getAllStudents = async (req: Request, res: Response) => {
 
 export const getMyAttendence = async (req: NewRequest, res: Response) => {
   try {
-    const classId = req.params.id;
-    const studentId = req.userId;
+    const classId = new Types.ObjectId(req.params.id);
+    const studentId = new Types.ObjectId(req.userId);
     if (!classId || !studentId) {
       return res.status(400).json({
         status: false,
@@ -55,7 +55,6 @@ export const getMyAttendence = async (req: NewRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(400).json({
       status: false,
       error: "Something went wrong! Please try again.",
