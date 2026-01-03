@@ -11,6 +11,18 @@ COPY . .
 
 RUN npm run build
 
+# Test stage
+
+FROM node:lts-alpine AS test
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm i
+
+COPY . .
+
 
 # Start stage
 
