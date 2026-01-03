@@ -9,7 +9,7 @@ services:
       - JWT_SECRET_KEY=secretkey
     depends_on:
       - mongodb
-    command: sh -c "npm run dev & wait 10 && npm run test"
+    command: sh -c "npm run dev & sleep 10 && npm run test"
 
   mongodb:
     image: mongo:7.0
