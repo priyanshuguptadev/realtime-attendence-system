@@ -1,23 +1,26 @@
 name: PR test workflow
 
+# on:
+#     pull_request:
+#         branches:
+#             - main
+
 on:
-    pull_request:
-        branches:
-            - main
+  workflow_dispatch:
 
 jobs:
-    build-and-test:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
-            - name: Setup Nodejs
-              uses: actions/setup-node@v6
-              with:
-                  node-version: "20.x"
-            - name: Start app
-              run: sudo docker compose up -d
-            - name: Install dependencies
-              run: npm i
-            - name: Test
-              run: npm run test
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Nodejs
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20.x"
+      - name: Start app
+        run: sudo docker compose up -d
+      - name: Install dependencies
+        run: npm i
+      - name: Test
+        run: npm run test
