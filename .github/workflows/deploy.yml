@@ -15,5 +15,5 @@ jobs:
                   script: |
                       cd realtime-attendence-system
                       git pull origin main
-                      sudo docker compose up -d
+                      sudo docker compose up -d --build
                       sudo systemctl restart nginx
