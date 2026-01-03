@@ -1,34 +1,25 @@
-name: Test
+name: PR test workflow
 
 on:
-    push:
+    pull_request:
         branches:
             - main
 
 jobs:
-    test:
+    build-and-test:
         runs-on: ubuntu-latest
-
         steps:
-            - name: Hello
-              run: ls -a
-        #   - name: Checkout code
-        #     uses: actions/checkout@v4
-
-        #   - name: Setup nodejs
-        #     uses: actions/setup-node@v6
-        #     with:
-        #       node-version: "20.x"
-
-        #   - name: Install deps
-        #     run: npm install
-
-        #   - name: Build project
-        #     run: npm run build
-
-        #   - name: Start and test
-        #     uses: MohamedRaslan/background_run_and_test@v1
-        #     with:
-        #       start: npm run start
-        #       wait-on: "http://localhost:3000"
-        #       command: npm run test
+            - name: Checkout code
+              uses: actions/checkout@v6
+            - name: Setup Nodejs
+              uses: actions/setup-node@v6
+              with:
+                  node-version: "20.x"
+            - name: Setup docker
+              uses: docker/setup-docker-action@v4
+            - name: Start app
+              run: sudo docker-compose up -d
+            - name: Install dependencies
+              run: npm i
+            - name: Test
+              run: npm run test
