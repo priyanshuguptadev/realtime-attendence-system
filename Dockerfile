@@ -9,7 +9,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run Build
+RUN npm run build
 
 
 # Start stage
