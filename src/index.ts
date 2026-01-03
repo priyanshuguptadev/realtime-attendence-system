@@ -25,7 +25,7 @@ app.get("/", (req, res) =>
   res.status(200).json({
     success: true,
     data: {
-      message: "Server is running!",
+      message: "Server is running fast!",
     },
   })
 );
