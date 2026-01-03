@@ -1,0 +1,19 @@
+on:
+    push:
+        branches: [main]
+
+jobs:
+    deploy-to-ec2:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy to EC2
+              uses: appleboy/ssh-action@v1
+              with:
+                  host: ${{ secrets.AWS_HOST }}
+                  username: ${{ secrets.AWS_USERNAME }}
+                  key: ${{ secrets.AWS_SSH_KEY }}
+                  script: |
+                      cd realtime-attendence-system
+                      git pull origin main
+                      sudo docker compose up -d
+                      sudo systemctl restart nginx
