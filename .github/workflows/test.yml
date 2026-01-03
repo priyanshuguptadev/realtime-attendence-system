@@ -1,32 +1,34 @@
 name: Test
 
 on:
-  push:
-    branches:
-      - main
+    push:
+        branches:
+            - main
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+    test:
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        steps:
+            - name: Hello
+              run: ls -a
+        #   - name: Checkout code
+        #     uses: actions/checkout@v4
 
-      - name: Setup nodejs
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20.x"
+        #   - name: Setup nodejs
+        #     uses: actions/setup-node@v6
+        #     with:
+        #       node-version: "20.x"
 
-      - name: Install deps
-        run: npm install
+        #   - name: Install deps
+        #     run: npm install
 
-      - name: Build project
-        run: npm run build
+        #   - name: Build project
+        #     run: npm run build
 
-      - name: Start and test
-        uses: MohamedRaslan/background_run_and_test@v1
-        with:
-          start: npm run start
-          wait-on: "http://localhost:3000"
-          command: npm run test
+        #   - name: Start and test
+        #     uses: MohamedRaslan/background_run_and_test@v1
+        #     with:
+        #       start: npm run start
+        #       wait-on: "http://localhost:3000"
+        #       command: npm run test

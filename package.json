@@ -32,7 +32,6 @@
     "@types/mongoose": "^5.11.96",
     "@types/node": "^25.0.3",
     "@types/ws": "^8.18.1",
-    "tsconfig-paths": "^4.2.0",
     "vitest": "^4.0.16"
   }
 }
